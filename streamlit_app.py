@@ -110,8 +110,12 @@ def pdf_save(uploaded_file, path=structure.pdf):
 def ui_pdf_file():
 	st.write('## 1. Upload or select your PDF file')
 	disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
-	t1,t2 = st.tabs(['UPLOAD','SELECT'])
+	t1,t2,t3 = st.tabs(['General','load from local','update load list'])
 	with t1:
+		ui_buildDB()
+		ui_question()
+
+	with t2:
 		uploaded_file = st.file_uploader('pdf file', type='pdf', key='pdf_file')
 		#b_save()
 
@@ -139,7 +143,7 @@ def ui_pdf_file():
 		st.table(df)
 
 
-	with t2:
+	with t3:
 		filenames = ['']
 		if ss.get('storage'):
 			filenames += ss['storage'].list()
@@ -189,9 +193,6 @@ with st.sidebar:
 
 # main GUI window
 ui_pdf_file()
-ui_buildDB()
-ui_question()
-
 
 
 #
