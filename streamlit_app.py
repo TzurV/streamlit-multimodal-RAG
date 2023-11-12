@@ -108,7 +108,7 @@ def pdf_save(uploaded_file, path=structure.pdf):
 
 
 def ui_pdf_file():
-	st.write('## 2. Upload or select your PDF file')
+	st.write('## 1. Upload or select your PDF file')
 	disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
 	t1,t2 = st.tabs(['UPLOAD','SELECT'])
 	with t1:
@@ -163,21 +163,34 @@ def ui_pdf_file():
 		ss['spin_select_file'] = st.empty()
 
 
-# ---- M A I N ----
+def ui_buildDB():
+	st.write('## 2. build QA DB')
+	disabled = False
+	if st.button('Build DB', disabled=disabled, type='primary', use_container_width=True):
+		st.write('**building**')
+		st.write('**done**')
 
+
+def ui_question():
+	st.write('## 3. Ask questions')
+	disabled = False
+	st.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
+
+# ---- M A I N ----
 
 st.write(structure.pdf)
 st.write(structure.audio_txt)
 
 # LAYOUT
-
+# sidebar GUI window
 with st.sidebar:
 	ui_info()
 	ui_spacer(2)
 
-
-
+# main GUI window
 ui_pdf_file()
+ui_buildDB()
+ui_question()
 
 
 
