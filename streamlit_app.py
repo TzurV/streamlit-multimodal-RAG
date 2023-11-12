@@ -1,107 +1,207 @@
+import streamlit as st
+import os
+import shutil
+from pathlib import Path
+
 import numpy as np
 import altair as alt
 import pandas as pd
-import streamlit as st
 from datetime import time, datetime
+
+
+app_name = "streamlit RAG"
+
+st.set_page_config(layout='centered', page_title=f'{app_name}')
+ss = st.session_state
+if 'debug' not in ss: ss['debug'] = {}
+
 
 def showtime():
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S.%f")
     st.write("Current Time =", current_time)
 
-#--------------------------
-st.header('st.multiselect')
-showtime()
 
-options = st.multiselect(
-    'What are your favorite colors',
-    ['Green', 'Yellow', 'Red', 'Blue'],
-    ['Yellow', 'Red'])
+class DirectoryStructure:
 
-st.write('You selected:', options)
+    def __init__(self):
+       self.create_structure()
 
-# ------------------------
-st.header('st.selectbox')
-showtime()
+    def create_structure(self):
+        # List of directories to create
+        dirs = [
+            "pdf",
+            os.path.join("pdf", "txt"),
+            "audio",
+            os.path.join("audio", "txt")
+        ]
 
-option = st.selectbox(
-    'What is your favorite color?',
-    ('Blue', 'Red', 'Green'))
+        # Loop through list and create directories
+        for d in dirs:
+            if not os.path.exists(d):
+                os.makedirs(d)
 
-st.write('Your favorite color is ', option)
+    @property
+    def pdf(self):
+        return os.path.realpath("pdf")
+    
+    @property
+    def pdf_txt(self):
+        return os.path.realpath(os.path.join("pdf", "txt"))
 
-#------------------------
-st.header('st.write')
-showtime()
+    @property
+    def audio(self):
+        return os.path.realpath("audio")
 
-# Example 1
+    @property
+    def audio_txt(self):
+        return os.path.realpath(os.path.join("audio", "txt"))
 
-st.write('Hello, *World!* :sunglasses:')
 
-# Example 2
+structure = DirectoryStructure()
 
-st.write(1234)
 
-# Example 3
+def ui_spacer(n=2, line=False, next_n=0):
+	for _ in range(n):
+		st.write('')
+	if line:
+		st.tabs([' '])
+	for _ in range(next_n):
+		st.write('')
 
-df = pd.DataFrame({
-    'first column': [1, 2, 3, 4],
-    'second column': [10, 20, 30, 40]
-})
-st.write(df)
+def ui_info():
+	st.markdown(f"""
+	# {app_name}
 
-# Example 4
+    Description: TBD
+	""")
 
-st.write('Below is a DataFrame:', df, 'Above is a dataframe.')
+def index_pdf_file():
+	st.write("In index_pdf_file")
+	if ss['pdf_file']:
+		st.write(f"In index_pdf_file {ss['pdf_file'].name}")
+		ss['filename'] = ss['pdf_file'].name
+		if ss['filename'] != ss.get('fielname_done'): # UGLY
+			with st.spinner(f'indexing {ss["filename"]}'):
+				index = model.index_file(ss['pdf_file'], ss['filename'], fix_text=ss['fix_text'], frag_size=ss['frag_size'], cache=ss['cache'])
+				ss['index'] = index
+				#debug_index()
+				ss['filename_done'] = ss['filename'] # UGLY
 
-# Example 5
+def pdf_save(uploaded_file, path=structure.pdf):
+    
+	# Get file name and type
+	file_name = Path(uploaded_file.name).stem
+	file_ext = Path(uploaded_file.name).suffix
 
-df2 = pd.DataFrame(
-    np.random.randn(200, 3),
-    columns=['a', 'b', 'c'])
-c = alt.Chart(df2).mark_circle().encode(
-    x='a', y='b', size='c', color='c', tooltip=['a', 'b', 'c'])
-st.write(c)
+	# Save file to local file system
+	local_file = os.path.join(path, f'{file_name}{file_ext}')
+	with open(local_file, 'wb') as out_file:
+		shutil.copyfileobj(uploaded_file, out_file)
 
-#--------------
-# https://30days.streamlit.app/?challenge=Day8
+	#st.success(f'Saved PDF to {local_file}')
 
-st.header('challenge=Day8 st.slider')
-showtime()
+	# remember
+	# Save uploaded file  
+	#with open(f"{uploaded_file.name}", "wb") as f: 
+	#	f.write(uploaded_file.getbuffer())
 
-# Example 1
 
-st.subheader('Slider')
+def ui_pdf_file():
+	st.write('## 2. Upload or select your PDF file')
+	disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
+	t1,t2 = st.tabs(['UPLOAD','SELECT'])
+	with t1:
+		uploaded_file = st.file_uploader('pdf file', type='pdf', key='pdf_file')
+		#b_save()
 
-age = st.slider('How old are you?', 0, 130, 25)
-st.write("I'm ", age, 'years old')
+		if uploaded_file is not None:
+			#st.write(f"{uploaded_file.name=}")
+			pdf_save(uploaded_file)
 
-# Example 2
+		# Specify directory 
+		directory = Path(structure.pdf)
 
-st.subheader('Range slider')
+		# List of dicts with file info
+		pdf_files = []
+		for path in directory.glob('*.pdf'):
+			info = {
+				'filename': path.name,
+				'size': path.stat().st_size
+			}
+			pdf_files.append(info)
 
-values = st.slider(
-    'Select a range of values',
-    0.0, 100.0, (25.0, 75.0))
-st.write('Values:', values)
+		# Create dataframe  
+		df = pd.DataFrame(pdf_files)
 
-# Example 3
+		# Display dataframe
+		st.header('PDF Files')
+		st.table(df)
 
-st.subheader('Range time slider')
 
-appointment = st.slider(
-    "Schedule your appointment:",
-    value=(time(11, 30), time(12, 45)))
-st.write("You're scheduled for:", appointment)
+	with t2:
+		filenames = ['']
+		if ss.get('storage'):
+			filenames += ss['storage'].list()
+		def on_change():
+			name = ss['selected_file']
+			if name and ss.get('storage'):
+				with ss['spin_select_file']:
+					with st.spinner('loading index'):
+						t0 = now()
+						index = ss['storage'].get(name)
+						ss['debug']['storage_get_time'] = now()-t0
+				ss['filename'] = name # XXX
+				ss['index'] = index
+				#debug_index()
+			else:
+				#ss['index'] = {}
+				pass
 
-# Example 4
+		st.selectbox('select file', filenames, on_change=on_change, key='selected_file', label_visibility="collapsed", disabled=disabled)
+		#b_delete()
+		ss['spin_select_file'] = st.empty()
 
-st.subheader('Datetime slider')
 
-start_time = st.slider(
-    "When do you start?",
-    value=datetime(2020, 1, 1, 9, 30),
-    format="MM/DD/YY - hh:mm")
-st.write("Start time:", start_time)
+# ---- M A I N ----
 
-showtime()
+
+st.write(structure.pdf)
+st.write(structure.audio_txt)
+
+# LAYOUT
+
+with st.sidebar:
+	ui_info()
+	ui_spacer(2)
+
+
+
+ui_pdf_file()
+
+
+
+#
+#Learn and remember:
+#
+# .........
+# 1. Session state
+#st.session_state is a way to store state across reruns in Streamlit.
+#
+#When a Streamlit app reruns (for example when interacting with a widget), normally all state is lost. 
+#st.session_state allows you to store values across reruns so they persist.
+#
+#    import streamlit as st
+#
+#    if 'count' not in st.session_state:
+#        st.session_state.count = 0
+#
+#    st.session_state.count += 1
+#
+#    st.write(st.session_state.count)
+#
+#This will increment and display a counter that persists across reruns.
+#
+# .........
+# 2.
+#
