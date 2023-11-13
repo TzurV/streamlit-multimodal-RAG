@@ -119,7 +119,7 @@ def file_save(uploaded_file):
 def ui_load_file():
 	st.write('## 1. Upload your file')
 	#disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
-	t1,t2,t3 = st.tabs(['General','load from local','update load list'])
+	t1,t2,t3 = st.tabs(['General','load from local','load from url'])
 	with t1:
 		ui_buildDB()
 		ui_question()
@@ -169,27 +169,40 @@ def ui_load_file():
 
 
 	with t3:
-		filenames = ['']
-		if ss.get('storage'):
-			filenames += ss['storage'].list()
-		def on_change():
-			name = ss['selected_file']
-			if name and ss.get('storage'):
-				with ss['spin_select_file']:
-					with st.spinner('loading index'):
-						t0 = now()
-						index = ss['storage'].get(name)
-						ss['debug']['storage_get_time'] = now()-t0
-				ss['filename'] = name # XXX
-				ss['index'] = index
-				#debug_index()
-			else:
-				#ss['index'] = {}
-				pass
+		text = st.text_area('Enter url based sources', key='load from url', height=100, placeholder='Enter url here', help='', label_visibility="collapsed", disabled=False)
 
-		st.selectbox('select file', filenames, on_change=on_change, key='selected_file', label_visibility="collapsed", disabled=False)
-		#b_delete()
-		ss['spin_select_file'] = st.empty()
+		disabled = False
+		if st.button('get files from URL list', disabled=disabled, type='primary', use_container_width=True):
+			st.write('**geting**')
+
+			if text:
+				for line in text.splitlines():
+					# Process each line
+					st.write(line)
+
+			st.write('**done**')
+
+		# filenames = ['']
+		# if ss.get('storage'):
+		# 	filenames += ss['storage'].list()
+		# def on_change():
+		# 	name = ss['selected_file']
+		# 	if name and ss.get('storage'):
+		# 		with ss['spin_select_file']:
+		# 			with st.spinner('loading index'):
+		# 				t0 = now()
+		# 				index = ss['storage'].get(name)
+		# 				ss['debug']['storage_get_time'] = now()-t0
+		# 		ss['filename'] = name # XXX
+		# 		ss['index'] = index
+		# 		#debug_index()
+		# 	else:
+		# 		#ss['index'] = {}
+		# 		pass
+
+		# st.selectbox('select file', filenames, on_change=on_change, key='selected_file', label_visibility="collapsed", disabled=False)
+		# #b_delete()
+		# ss['spin_select_file'] = st.empty()
 
 
 def ui_buildDB():
