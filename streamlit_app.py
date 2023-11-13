@@ -33,7 +33,7 @@ class DirectoryStructure:
             "pdf",
             os.path.join("pdf", "txt"),
             "audio",
-            os.path.join("audio", "txt")
+            os.path.join("audio", "txt")			
         ]
 
         # Loop through list and create directories
@@ -88,11 +88,20 @@ def index_pdf_file():
 				#debug_index()
 				ss['filename_done'] = ss['filename'] # UGLY
 
-def pdf_save(uploaded_file, path=structure.pdf):
+def file_save(uploaded_file):
     
 	# Get file name and type
 	file_name = Path(uploaded_file.name).stem
-	file_ext = Path(uploaded_file.name).suffix
+	file_ext = Path(uploaded_file.name).suffix.lower()
+
+	# Specify directory
+	if file_ext == '.pdf':
+		path = structure.pdf
+	elif file_ext == '.wav' or file_ext == '.mp3':
+		path = structure.audio
+	else:
+		st.write('unknown file type')
+		return
 
 	# Save file to local file system
 	local_file = os.path.join(path, f'{file_name}{file_ext}')
@@ -107,26 +116,22 @@ def pdf_save(uploaded_file, path=structure.pdf):
 	#	f.write(uploaded_file.getbuffer())
 
 
-def ui_pdf_file():
-	st.write('## 1. Upload or select your PDF file')
-	disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
+def ui_load_file():
+	st.write('## 1. Upload your file')
+	#disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
 	t1,t2,t3 = st.tabs(['General','load from local','update load list'])
 	with t1:
 		ui_buildDB()
 		ui_question()
 
 	with t2:
-		uploaded_file = st.file_uploader('pdf file', type='pdf', key='pdf_file')
-		#b_save()
+		uploaded_file = st.file_uploader('pdf file', type=['pdf', 'wav', 'mp3'], key='load from local')
 
 		if uploaded_file is not None:
-			#st.write(f"{uploaded_file.name=}")
-			pdf_save(uploaded_file)
-
-		# Specify directory 
-		directory = Path(structure.pdf)
+			file_save(uploaded_file)
 
 		# List of dicts with file info
+		directory = Path(structure.pdf)
 		pdf_files = []
 		for path in directory.glob('*.pdf'):
 			info = {
@@ -136,11 +141,31 @@ def ui_pdf_file():
 			pdf_files.append(info)
 
 		# Create dataframe  
-		df = pd.DataFrame(pdf_files)
+		pdf_df = pd.DataFrame(pdf_files)
 
 		# Display dataframe
 		st.header('PDF Files')
-		st.table(df)
+		st.table(pdf_df)
+
+		directory = Path(structure.audio)
+		audio_files = []
+		wav_files = list(directory.glob('*.wav')) 
+		mp3_files = list(directory.glob('*.mp3'))
+
+		all_audio_files = wav_files + mp3_files
+		for path in all_audio_files:
+			info = {
+				'filename': path.name,
+				'size': path.stat().st_size
+			}
+			audio_files.append(info)
+
+		# Create dataframe  
+		audio_df = pd.DataFrame(audio_files)
+
+		# Display dataframe
+		st.header('audio Files')
+		st.table(audio_df)
 
 
 	with t3:
@@ -162,7 +187,7 @@ def ui_pdf_file():
 				#ss['index'] = {}
 				pass
 
-		st.selectbox('select file', filenames, on_change=on_change, key='selected_file', label_visibility="collapsed", disabled=disabled)
+		st.selectbox('select file', filenames, on_change=on_change, key='selected_file', label_visibility="collapsed", disabled=False)
 		#b_delete()
 		ss['spin_select_file'] = st.empty()
 
@@ -192,7 +217,7 @@ with st.sidebar:
 	ui_spacer(2)
 
 # main GUI window
-ui_pdf_file()
+ui_load_file()
 
 
 #
