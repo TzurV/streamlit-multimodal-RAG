@@ -6,20 +6,30 @@ from pathlib import Path
 import numpy as np
 import altair as alt
 import pandas as pd
-from datetime import time, datetime
+from datetime import datetime
+import time
 
 
 app_name = "streamlit RAG"
 
 st.set_page_config(layout='centered', page_title=f'{app_name}')
 ss = st.session_state
+
 if 'debug' not in ss: ss['debug'] = {}
+if 'loaded' not in ss: ss['loaded'] = False
+if 'run_return' not in ss: ss['run_return'] = False
 
-
-def showtime():
+def showtime(label=""):
     now = datetime.now()
     current_time = now.strftime("%H:%M:%S.%f")
-    st.write("Current Time =", current_time)
+    st.write(label, ": Current Time =", current_time)
+
+
+
+if ss.run_return:
+	time.sleep(1)
+ss.run_return = False	
+
 
 
 class DirectoryStructure:
@@ -31,9 +41,9 @@ class DirectoryStructure:
         # List of directories to create
         dirs = [
             "pdf",
-            os.path.join("pdf", "txt"),
+            #os.path.join("pdf", "txt"),
             "audio",
-            os.path.join("audio", "txt")			
+            #os.path.join("audio", "txt")			
         ]
 
         # Loop through list and create directories
@@ -45,19 +55,19 @@ class DirectoryStructure:
     def pdf(self):
         return os.path.realpath("pdf")
     
-    @property
-    def pdf_txt(self):
-        return os.path.realpath(os.path.join("pdf", "txt"))
+    #@property
+    #def pdf_txt(self):
+    #    return os.path.realpath(os.path.join("pdf", "txt"))
 
     @property
     def audio(self):
         return os.path.realpath("audio")
 
-    @property
-    def audio_txt(self):
-        return os.path.realpath(os.path.join("audio", "txt"))
+    #@property
+    #def audio_txt(self):
+    #    return os.path.realpath(os.path.join("audio", "txt"))
 
-
+showtime("start")
 structure = DirectoryStructure()
 
 
@@ -88,6 +98,20 @@ def index_pdf_file():
 				#debug_index()
 				ss['filename_done'] = ss['filename'] # UGLY
 
+
+def ui_buildDB():
+	st.write(f"## 2. build QA DB {ss.loaded}")
+	disabled = ss.loaded
+	if st.button('Build DB', disabled=disabled, type='primary', use_container_width=True):
+		st.write('**building**')
+		st.write('**done**')
+
+
+def ui_question():
+	st.write('## 3. Ask questions')
+	disabled = False
+	st.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
+
 def file_save(uploaded_file):
     
 	# Get file name and type
@@ -101,7 +125,7 @@ def file_save(uploaded_file):
 		path = structure.audio
 	else:
 		st.write('unknown file type')
-		return
+		return  
 
 	# Save file to local file system
 	local_file = os.path.join(path, f'{file_name}{file_ext}')
@@ -117,12 +141,24 @@ def file_save(uploaded_file):
 
 
 def ui_load_file():
-	st.write('## 1. Upload your file')
+	st.write('## Upload your files, build DB and ask question')
 	#disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
 	t1,t2,t3 = st.tabs(['General','load from local','load from url'])
-	with t1:
-		ui_buildDB()
-		ui_question()
+
+	t1.write(f"## 2. build QA DB {ss.loaded}")
+	#disabled = ss.loaded
+	if t1.button('Build DB', disabled=not ss.loaded, use_container_width=True):
+		st.write('**building**')
+		st.write('**done**')
+
+	t1.write('## 3. Ask questions')
+	disabled = False
+	if t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled):
+		pass
+
+	#with t1:
+	#		#ui_buildDB()
+	#	ui_question()
 
 	with t2:
 		uploaded_file = st.file_uploader('pdf file', type=['pdf', 'wav', 'mp3'], key='load from local')
@@ -147,6 +183,9 @@ def ui_load_file():
 		st.header('PDF Files')
 		st.table(pdf_df)
 
+		if not len(pdf_df.index) == 0:
+			ss['loaded'] = True
+
 		directory = Path(structure.audio)
 		audio_files = []
 		wav_files = list(directory.glob('*.wav')) 
@@ -167,6 +206,10 @@ def ui_load_file():
 		st.header('audio Files')
 		st.table(audio_df)
 
+		if not len(audio_df.index) == 0:
+			ss.loaded = True
+			ss.run_return = True
+			time.sleep(1)
 
 	with t3:
 		text = st.text_area('Enter url based sources', key='load from url', height=100, placeholder='Enter url here', help='', label_visibility="collapsed", disabled=False)
@@ -204,24 +247,10 @@ def ui_load_file():
 		# #b_delete()
 		# ss['spin_select_file'] = st.empty()
 
-
-def ui_buildDB():
-	st.write('## 2. build QA DB')
-	disabled = False
-	if st.button('Build DB', disabled=disabled, type='primary', use_container_width=True):
-		st.write('**building**')
-		st.write('**done**')
-
-
-def ui_question():
-	st.write('## 3. Ask questions')
-	disabled = False
-	st.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
-
 # ---- M A I N ----
 
-st.write(structure.pdf)
-st.write(structure.audio_txt)
+#st.write(structure.pdf)
+#st.write(structure.audio_txt)
 
 # LAYOUT
 # sidebar GUI window
