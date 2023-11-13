@@ -30,8 +30,6 @@ if ss.run_return:
 	time.sleep(1)
 ss.run_return = False	
 
-
-
 class DirectoryStructure:
 
     def __init__(self):
@@ -41,7 +39,7 @@ class DirectoryStructure:
         # List of directories to create
         dirs = [
             "pdf",
-            #os.path.join("pdf", "txt"),
+            "txt",
             "audio",
             #os.path.join("audio", "txt")			
         ]
@@ -55,9 +53,9 @@ class DirectoryStructure:
     def pdf(self):
         return os.path.realpath("pdf")
     
-    #@property
-    #def pdf_txt(self):
-    #    return os.path.realpath(os.path.join("pdf", "txt"))
+    @property
+    def txt(self):
+        return os.path.realpath("txt")
 
     @property
     def audio(self):
@@ -69,7 +67,6 @@ class DirectoryStructure:
 
 showtime("start")
 structure = DirectoryStructure()
-
 
 def ui_spacer(n=2, line=False, next_n=0):
 	for _ in range(n):
@@ -140,6 +137,21 @@ def file_save(uploaded_file):
 	#	f.write(uploaded_file.getbuffer())
 
 
+def extract_text_from_pdf():
+	directory = Path(structure.pdf)
+	for path in directory.glob('*.pdf'):
+		st.write(f"extracting {path}")
+
+def	transcibe_audio():
+	directory = Path(structure.audio)
+	wav_files = list(directory.glob('*.wav')) 
+	mp3_files = list(directory.glob('*.mp3'))
+
+	all_audio_files = wav_files + mp3_files
+	for path in all_audio_files:
+		st.write(f"transcribing {path}")
+
+
 def ui_load_file():
 	st.write('## Upload your files, build DB and ask question')
 	#disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
@@ -148,7 +160,13 @@ def ui_load_file():
 	t1.write(f"## 2. build QA DB {ss.loaded}")
 	#disabled = ss.loaded
 	if t1.button('Build DB', disabled=not ss.loaded, use_container_width=True):
-		st.write('**building**')
+		now = datetime.now()
+		current_time = now.strftime("%H:%M:%S.%f")
+
+		extract_text_from_pdf()
+		transcibe_audio()
+
+		st.write('**building**', current_time)
 		st.write('**done**')
 
 	t1.write('## 3. Ask questions')
