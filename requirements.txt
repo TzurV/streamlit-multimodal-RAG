@@ -1,5 +1,12 @@
-numpy
+numpy==1.23.5
 altair
 pandas
 streamlit
 datetime
+sentence-transformers==2.2.2
+langchain==0.0.219
+langchainplus-sdk==0.0.17
+unstructured==0.7.10
+pdf2image==1.16.3
+pdfminer.six==20221105
+chromadb==0.3.26
