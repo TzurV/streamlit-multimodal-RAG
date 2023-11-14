@@ -2,6 +2,11 @@ import streamlit as st
 import os
 import shutil
 from pathlib import Path
+from langchain.document_loaders import UnstructuredPDFLoader
+from langchain.embeddings import HuggingFaceEmbeddings #for using HugginFace models
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.llms import HuggingFaceHub
+from langchain.indexes import VectorstoreIndexCreator
 
 import numpy as np
 import altair as alt
@@ -138,9 +143,13 @@ def file_save(uploaded_file):
 
 
 def extract_text_from_pdf():
+	loaders = []
 	directory = Path(structure.pdf)
 	for path in directory.glob('*.pdf'):
 		st.write(f"extracting {path}")
+		#loaders.append(UnstructuredPDFLoader(path))
+	loaders = [UnstructuredPDFLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
+	return loaders
 
 def	transcibe_audio():
 	directory = Path(structure.audio)
@@ -163,8 +172,13 @@ def ui_load_file():
 		now = datetime.now()
 		current_time = now.strftime("%H:%M:%S.%f")
 
-		extract_text_from_pdf()
+		loaders = extract_text_from_pdf()
+		#st.write(type(loaders), len(loaders), loaders[0])
 		transcibe_audio()
+
+		vectorstoreIndex = VectorstoreIndexCreator(
+    		embedding=HuggingFaceEmbeddings(),
+    		text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
 
 		st.write('**building**', current_time)
 		st.write('**done**')
