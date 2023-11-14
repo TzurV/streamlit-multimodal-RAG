@@ -185,7 +185,11 @@ def ui_load_file():
 
 	t1.write('## 3. Ask questions')
 	disabled = False
-	if t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled):
+	question = t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
+	if t1.button('get answer', disabled=disabled, type='primary', use_container_width=True):
+		with st.spinner('preparing answer'):
+			st.write(question)
+			time.sleep(2) # Simulate work
 		pass
 
 	#with t1:
