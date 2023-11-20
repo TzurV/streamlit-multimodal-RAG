@@ -7,6 +7,7 @@ from langchain.embeddings import HuggingFaceEmbeddings #for using HugginFace mod
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.llms import HuggingFaceHub
 from langchain.indexes import VectorstoreIndexCreator
+from langchain.chains import RetrievalQA
 
 import numpy as np
 import altair as alt
@@ -20,6 +21,7 @@ app_name = "streamlit RAG"
 st.set_page_config(layout='centered', page_title=f'{app_name}')
 ss = st.session_state
 
+
 if 'debug' not in ss: ss['debug'] = {}
 if 'loaded' not in ss: ss['loaded'] = False
 if 'run_return' not in ss: ss['run_return'] = False
@@ -29,11 +31,9 @@ def showtime(label=""):
     current_time = now.strftime("%H:%M:%S.%f")
     st.write(label, ": Current Time =", current_time)
 
-
-
 if ss.run_return:
 	time.sleep(1)
-ss.run_return = False	
+ss.run_return = False
 
 class DirectoryStructure:
 
@@ -73,6 +73,25 @@ class DirectoryStructure:
 showtime("start")
 structure = DirectoryStructure()
 
+curent_llm = None
+if 'chain' not in ss: ss['chain'] = None
+ss['show_debug'] = True
+
+def set_gf_api_key():
+
+	#global gf_api_key
+	#gf_api_key = api_key
+	os.environ["HUGGINGFACEHUB_API_TOKEN"] = ss.get('api_key')
+
+	# load llm
+	global curent_llm
+	curent_llm = HuggingFaceHub(repo_id="declare-lab/flan-alpaca-large", model_kwargs={"temperature":0, "max_length":512})
+
+def ui_debug():
+	if ss.get('show_debug'):
+		st.write('### debug')
+		st.write(ss.get('debug',{}))
+
 def ui_spacer(n=2, line=False, next_n=0):
 	for _ in range(n):
 		st.write('')
@@ -101,12 +120,12 @@ def index_pdf_file():
 				ss['filename_done'] = ss['filename'] # UGLY
 
 
-def ui_buildDB():
-	st.write(f"## 2. build QA DB {ss.loaded}")
-	disabled = ss.loaded
-	if st.button('Build DB', disabled=disabled, type='primary', use_container_width=True):
-		st.write('**building**')
-		st.write('**done**')
+#def ui_buildDB():
+#	st.write(f"## 2. build QA DB {ss.loaded}")
+#	disabled = ss.loaded
+#	if st.button('Build DB', disabled=disabled, type='primary', use_container_width=True):
+#		st.write('**building**')
+#		st.write('**done**')
 
 
 def ui_question():
@@ -162,6 +181,8 @@ def	transcibe_audio():
 
 
 def ui_load_file():
+	global curent_llm
+
 	st.write('## Upload your files, build DB and ask question')
 	#disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
 	t1,t2,t3 = st.tabs(['General','load from local','load from url'])
@@ -180,6 +201,19 @@ def ui_load_file():
     		embedding=HuggingFaceEmbeddings(),
     		text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
 
+		if curent_llm is None and ss.get('api_key'):
+			set_gf_api_key()
+		else:
+			st.error("API key not set")
+
+		# https://python.langchain.com/docs/use_cases/question_answering/
+		ss['chain'] = RetrievalQA.from_chain_type(llm=curent_llm,
+										chain_type="stuff",
+										retriever=vectorstoreIndex.vectorstore.as_retriever(search_kwargs={"k": 6}),
+										input_key="question")
+		showtime(f"Chain build {type(ss['chain'])}")
+
+
 		st.write('**building**', current_time)
 		st.write('**done**')
 
@@ -188,8 +222,9 @@ def ui_load_file():
 	question = t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
 	if t1.button('get answer', disabled=disabled, type='primary', use_container_width=True):
 		with st.spinner('preparing answer'):
-			st.write(question)
-			time.sleep(2) # Simulate work
+			chain = ss['chain']
+			showtime(f"question: {question} {type(chain)}")
+			st.write(f"answer: {chain.run(question)}")
 		pass
 
 	#with t1:
@@ -261,42 +296,24 @@ def ui_load_file():
 
 			st.write('**done**')
 
-		# filenames = ['']
-		# if ss.get('storage'):
-		# 	filenames += ss['storage'].list()
-		# def on_change():
-		# 	name = ss['selected_file']
-		# 	if name and ss.get('storage'):
-		# 		with ss['spin_select_file']:
-		# 			with st.spinner('loading index'):
-		# 				t0 = now()
-		# 				index = ss['storage'].get(name)
-		# 				ss['debug']['storage_get_time'] = now()-t0
-		# 		ss['filename'] = name # XXX
-		# 		ss['index'] = index
-		# 		#debug_index()
-		# 	else:
-		# 		#ss['index'] = {}
-		# 		pass
-
-		# st.selectbox('select file', filenames, on_change=on_change, key='selected_file', label_visibility="collapsed", disabled=False)
-		# #b_delete()
-		# ss['spin_select_file'] = st.empty()
-
 # ---- M A I N ----
-
-#st.write(structure.pdf)
-#st.write(structure.audio_txt)
 
 # LAYOUT
 # sidebar GUI window
 with st.sidebar:
 	ui_info()
 	ui_spacer(2)
+	'''
+	This code will call the set_gf_api_key function whenever the user changes the value of the huggingfacehub_api_token text input field.
+	The api_key parameter will contain the new value of the text input field.
+	'''
+	st.write('## 1. Enter your huggingface API key')
+	st.text_input('huggingfacehub_api_token', type='password', key='api_key', on_change=set_gf_api_key, label_visibility="collapsed")
+
 
 # main GUI window
 ui_load_file()
-
+ui_debug()
 
 #
 #Learn and remember:
