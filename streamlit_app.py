@@ -9,6 +9,9 @@ from langchain.llms import HuggingFaceHub
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.chains import RetrievalQA
 
+from transformers import pipeline
+
+import librosa
 import numpy as np
 import altair as alt
 import pandas as pd
@@ -25,6 +28,7 @@ ss = st.session_state
 if 'debug' not in ss: ss['debug'] = {}
 if 'loaded' not in ss: ss['loaded'] = False
 if 'run_return' not in ss: ss['run_return'] = False
+if 'transcriber' not in ss: ss['transcriber'] = None
 
 def showtime(label=""):
     now = datetime.now()
@@ -86,6 +90,19 @@ def set_gf_api_key():
 	# load llm
 	global curent_llm
 	curent_llm = HuggingFaceHub(repo_id="declare-lab/flan-alpaca-large", model_kwargs={"temperature":0, "max_length":512})
+
+def load_audio_set_sample_rate(file_path):
+	# Load the WAV file using librosa 
+	waveform, sample_rate = librosa.load(file_path, sr=None, mono=True) 
+    
+	if sample_rate != 16000:
+		# Resample to 16kHz
+		waveform = librosa.resample(waveform, orig_sr=sample_rate, target_sr=16000)
+    
+	# Convert to numpy array
+	waveform = np.array(waveform) 
+
+	return waveform, 16000
 
 def ui_debug():
 	if ss.get('show_debug'):
@@ -177,8 +194,11 @@ def	transcibe_audio():
 
 	all_audio_files = wav_files + mp3_files
 	for path in all_audio_files:
-		st.write(f"transcribing {path}")
-
+		with st.spinner(f"transcribing {path}"):
+			samples, sample_rate = load_audio_set_sample_rate(path)
+			transcriber = ss.transcriber
+			transcription = transcriber(samples)
+			st.write(transcription)
 
 def ui_load_file():
 	global curent_llm
@@ -187,45 +207,43 @@ def ui_load_file():
 	#disabled = not ss.get('user') or (not ss.get('api_key') and not ss.get('community_pct',0))
 	t1,t2,t3 = st.tabs(['General','load from local','load from url'])
 
-	t1.write(f"## 2. build QA DB {ss.loaded}")
-	#disabled = ss.loaded
-	if t1.button('Build DB', disabled=not ss.loaded, use_container_width=True):
-		now = datetime.now()
-		current_time = now.strftime("%H:%M:%S.%f")
+	with t1:
+		st.write(f"## 2. build QA DB {ss.loaded}")
+		if st.button('Build DB', disabled=not ss.loaded, use_container_width=True):
+			now = datetime.now()
+			current_time = now.strftime("%H:%M:%S.%f")
 
-		loaders = extract_text_from_pdf()
-		#st.write(type(loaders), len(loaders), loaders[0])
-		transcibe_audio()
+			loaders = extract_text_from_pdf()
+			#st.write(type(loaders), len(loaders), loaders[0])
+			#transcibe_audio()
 
-		vectorstoreIndex = VectorstoreIndexCreator(
-    		embedding=HuggingFaceEmbeddings(),
-    		text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
+			vectorstoreIndex = VectorstoreIndexCreator(
+				embedding=HuggingFaceEmbeddings(),
+				text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
 
-		if curent_llm is None and ss.get('api_key'):
-			set_gf_api_key()
-		else:
-			st.error("API key not set")
+			if curent_llm is None and ss.get('api_key'):
+				set_gf_api_key()
+			else:
+				st.error("API key not set")
 
-		# https://python.langchain.com/docs/use_cases/question_answering/
-		ss['chain'] = RetrievalQA.from_chain_type(llm=curent_llm,
-										chain_type="stuff",
-										retriever=vectorstoreIndex.vectorstore.as_retriever(search_kwargs={"k": 6}),
-										input_key="question")
-		showtime(f"Chain build {type(ss['chain'])}")
+			# https://python.langchain.com/docs/use_cases/question_answering/
+			ss['chain'] = RetrievalQA.from_chain_type(llm=curent_llm,
+											chain_type="stuff",
+											retriever=vectorstoreIndex.vectorstore.as_retriever(search_kwargs={"k": 6}),
+											input_key="question")
+			showtime(f"Chain build {type(ss['chain'])}")
 
+			st.write('**building**', current_time)
+			st.write('**done**')
 
-		st.write('**building**', current_time)
-		st.write('**done**')
-
-	t1.write('## 3. Ask questions')
-	disabled = False
-	question = t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
-	if t1.button('get answer', disabled=disabled, type='primary', use_container_width=True):
-		with st.spinner('preparing answer'):
-			chain = ss['chain']
-			showtime(f"question: {question} {type(chain)}")
-			st.write(f"answer: {chain.run(question)}")
-		pass
+		st.write('## 3. Ask questions')
+		disabled = False
+		question = t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
+		if st.button('get answer', disabled=disabled, type='primary', use_container_width=True):
+			with st.spinner('preparing answer'):
+				chain = ss['chain']
+				showtime(f"question: {question} {type(chain)}")
+				st.write(f"answer: {chain.run(question)}")
 
 	#with t1:
 	#		#ui_buildDB()
@@ -277,6 +295,16 @@ def ui_load_file():
 		st.header('audio Files')
 		st.table(audio_df)
 
+		if not audio_df.empty and ss.transcriber is None:
+			with st.spinner('loading model'):
+				ss.transcriber = pipeline(model="openai/whisper-base")
+
+		if st.button('Transcribe', disabled=audio_df.empty, type='primary', use_container_width=True):
+			with st.spinner('transcribing'):
+				transcibe_audio()
+				time.sleep(1)
+
+
 		if not len(audio_df.index) == 0:
 			ss.loaded = True
 			ss.run_return = True
@@ -303,10 +331,9 @@ def ui_load_file():
 with st.sidebar:
 	ui_info()
 	ui_spacer(2)
-	'''
-	This code will call the set_gf_api_key function whenever the user changes the value of the huggingfacehub_api_token text input field.
-	The api_key parameter will contain the new value of the text input field.
-	'''
+	
+	#This code will call the set_gf_api_key function whenever the user changes the value of the huggingfacehub_api_token text input field.
+	#The api_key parameter will contain the new value of the text input field.
 	st.write('## 1. Enter your huggingface API key')
 	st.text_input('huggingfacehub_api_token', type='password', key='api_key', on_change=set_gf_api_key, label_visibility="collapsed")
 
