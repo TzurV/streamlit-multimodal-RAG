@@ -3,14 +3,17 @@ import os
 import shutil
 from pathlib import Path
 from langchain.document_loaders import UnstructuredPDFLoader
-from langchain.embeddings import HuggingFaceEmbeddings #for using HugginFace models
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.llms import HuggingFaceHub
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.chains import RetrievalQA
 
+# source: https://github.com/huggingface/distil-whisper
 from transformers import pipeline
+from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
+import torch
 import librosa
 import numpy as np
 import altair as alt
@@ -29,6 +32,7 @@ if 'debug' not in ss: ss['debug'] = {}
 if 'loaded' not in ss: ss['loaded'] = False
 if 'run_return' not in ss: ss['run_return'] = False
 if 'transcriber' not in ss: ss['transcriber'] = None
+if 'pipe' not in ss: ss['pipe'] = None
 
 def showtime(label=""):
     now = datetime.now()
@@ -124,17 +128,17 @@ def ui_info():
     Description: TBD
 	""")
 
-def index_pdf_file():
-	st.write("In index_pdf_file")
-	if ss['pdf_file']:
-		st.write(f"In index_pdf_file {ss['pdf_file'].name}")
-		ss['filename'] = ss['pdf_file'].name
-		if ss['filename'] != ss.get('fielname_done'): # UGLY
-			with st.spinner(f'indexing {ss["filename"]}'):
-				index = model.index_file(ss['pdf_file'], ss['filename'], fix_text=ss['fix_text'], frag_size=ss['frag_size'], cache=ss['cache'])
-				ss['index'] = index
-				#debug_index()
-				ss['filename_done'] = ss['filename'] # UGLY
+# def index_pdf_file():
+# 	st.write("In index_pdf_file")
+# 	if ss['pdf_file']:
+# 		st.write(f"In index_pdf_file {ss['pdf_file'].name}")
+# 		ss['filename'] = ss['pdf_file'].name
+# 		if ss['filename'] != ss.get('fielname_done'): # UGLY
+# 			with st.spinner(f'indexing {ss["filename"]}'):
+# 				index = model.index_file(ss['pdf_file'], ss['filename'], fix_text=ss['fix_text'], frag_size=ss['frag_size'], cache=ss['cache'])
+# 				ss['index'] = index
+# 				#debug_index()
+# 				ss['filename_done'] = ss['filename'] # UGLY
 
 
 #def ui_buildDB():
@@ -192,13 +196,22 @@ def	transcibe_audio():
 	wav_files = list(directory.glob('*.wav')) 
 	mp3_files = list(directory.glob('*.mp3'))
 
+	# source https://github.com/huggingface/distil-whisper
 	all_audio_files = wav_files + mp3_files
 	for path in all_audio_files:
+		start_time = time.time()
+		showtime("Start clock")
 		with st.spinner(f"transcribing {path}"):
 			samples, sample_rate = load_audio_set_sample_rate(path)
-			transcriber = ss.transcriber
-			transcription = transcriber(samples)
+			#transcriber = ss.transcriber
+			#transcription = transcriber(samples)
+			st.write(samples.shape)
+			transcription = ss.pipe(samples)
 			st.write(transcription)
+
+		elapsed_time = time.time() - start_time 
+		st.success('Done!')
+		st.write(f"Took {elapsed_time:.2f} seconds")
 
 def ui_load_file():
 	global curent_llm
@@ -295,14 +308,38 @@ def ui_load_file():
 		st.header('audio Files')
 		st.table(audio_df)
 
+		# source: https://github.com/huggingface/distil-whisper#long-form-transcription
 		if not audio_df.empty and ss.transcriber is None:
 			with st.spinner('loading model'):
-				ss.transcriber = pipeline(model="openai/whisper-base")
+				#ss.transcriber = pipeline(model="openai/whisper-base")
+				device = "cuda:0" if torch.cuda.is_available() else "cpu"
+				torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+
+				model_id = "distil-whisper/distil-medium.en" #distil-whisper/distil-large-v2"
+
+				model = AutoModelForSpeechSeq2Seq.from_pretrained(
+					model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
+				)
+				model.to(device)
+
+				processor = AutoProcessor.from_pretrained(model_id)
+
+				ss.pipe = pipeline(
+						"automatic-speech-recognition",
+						model=model,
+						tokenizer=processor.tokenizer,
+						feature_extractor=processor.feature_extractor,
+						max_new_tokens=128, # controls the maximum number of generated tokens per-chunk.
+						chunk_length_s=15,  # To enable chunking, pass the chunk_length_s parameter to the pipeline. For Distil-Whisper, a chunk length of 15-seconds is optimal.
+						batch_size=2,
+						torch_dtype=torch_dtype,
+						device=device,
+					)
 
 		if st.button('Transcribe', disabled=audio_df.empty, type='primary', use_container_width=True):
-			with st.spinner('transcribing'):
-				transcibe_audio()
-				time.sleep(1)
+			#with st.spinner('transcribing'):
+			transcibe_audio()
+			#time.sleep(1)
 
 
 		if not len(audio_df.index) == 0:
