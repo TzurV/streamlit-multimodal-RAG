@@ -24,9 +24,9 @@ import time
 
 app_name = "streamlit RAG"
 
+# session state
 st.set_page_config(layout='centered', page_title=f'{app_name}')
 ss = st.session_state
-
 
 if 'debug' not in ss: ss['debug'] = {}
 if 'loaded' not in ss: ss['loaded'] = False
@@ -191,6 +191,19 @@ def extract_text_from_pdf():
 	loaders = [UnstructuredPDFLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
 	return loaders
 
+def text_filename_from_original(original_file_name):
+	"""
+	Generates a text filename from the original file name.
+
+	:param original_file_name: The original file name.
+	:type original_file_name: str
+	:return: The generated text filename.
+	:rtype: str
+	"""
+	text_filename = structure.txt + original_file_name.stem + \
+            '_' + original_file_name.suffix.replace('.', '') + '.txt'
+	return Path(text_filename)
+
 def	transcibe_audio():
 	directory = Path(structure.audio)
 	wav_files = list(directory.glob('*.wav')) 
@@ -198,20 +211,30 @@ def	transcibe_audio():
 
 	# source https://github.com/huggingface/distil-whisper
 	all_audio_files = wav_files + mp3_files
-	for path in all_audio_files:
+	for audio_file in all_audio_files:
+
+		text_filename = text_filename_from_original(audio_file)
+		if text_filename.exists():
+			st.write(f"skipping {audio_file} because {text_filename} exists")
+			continue
+
+		samples, sample_rate = load_audio_set_sample_rate(audio_file)
 		start_time = time.time()
 		showtime("Start clock")
-		with st.spinner(f"transcribing {path}"):
-			samples, sample_rate = load_audio_set_sample_rate(path)
+		with st.spinner(f"transcribing {audio_file} audio duration {samples.shape[0]/sample_rate:.2f} seconds"):
 			#transcriber = ss.transcriber
 			#transcription = transcriber(samples)
-			st.write(samples.shape)
+
 			transcription = ss.pipe(samples)
 			st.write(transcription)
 
 		elapsed_time = time.time() - start_time 
 		st.success('Done!')
 		st.write(f"Took {elapsed_time:.2f} seconds")
+		
+		# save text in file
+		with open(text_filename, "w") as f: 
+			f.write(transcription['text'])
 
 def ui_load_file():
 	global curent_llm
