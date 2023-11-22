@@ -1,2 +1,4 @@
 
 *.bak
+my_keys.py
+*.pyc
