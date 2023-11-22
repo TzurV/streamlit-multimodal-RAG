@@ -21,18 +21,23 @@ import pandas as pd
 from datetime import datetime
 import time
 
+import my_keys
 
 app_name = "streamlit RAG"
+
 
 # session state
 st.set_page_config(layout='centered', page_title=f'{app_name}')
 ss = st.session_state
+
+ss['api_key'] = my_keys.HUGGINGFACEHUB_API_TOKEN
 
 if 'debug' not in ss: ss['debug'] = {}
 if 'loaded' not in ss: ss['loaded'] = False
 if 'run_return' not in ss: ss['run_return'] = False
 if 'transcriber' not in ss: ss['transcriber'] = None
 if 'pipe' not in ss: ss['pipe'] = None
+
 
 def showtime(label=""):
     now = datetime.now()
@@ -333,31 +338,32 @@ def ui_load_file():
 
 		# source: https://github.com/huggingface/distil-whisper#long-form-transcription
 		if not audio_df.empty and ss.transcriber is None:
-			with st.spinner('loading model'):
-				#ss.transcriber = pipeline(model="openai/whisper-base")
-				device = "cuda:0" if torch.cuda.is_available() else "cpu"
-				torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+			if ss.pipe is None:
+				with st.spinner('loading model'):
+					#ss.transcriber = pipeline(model="openai/whisper-base")
+					device = "cuda:0" if torch.cuda.is_available() else "cpu"
+					torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
-				model_id = "distil-whisper/distil-medium.en" #distil-whisper/distil-large-v2"
+					model_id = "distil-whisper/distil-medium.en" #distil-whisper/distil-large-v2"
 
-				model = AutoModelForSpeechSeq2Seq.from_pretrained(
-					model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
-				)
-				model.to(device)
-
-				processor = AutoProcessor.from_pretrained(model_id)
-
-				ss.pipe = pipeline(
-						"automatic-speech-recognition",
-						model=model,
-						tokenizer=processor.tokenizer,
-						feature_extractor=processor.feature_extractor,
-						max_new_tokens=128, # controls the maximum number of generated tokens per-chunk.
-						chunk_length_s=15,  # To enable chunking, pass the chunk_length_s parameter to the pipeline. For Distil-Whisper, a chunk length of 15-seconds is optimal.
-						batch_size=2,
-						torch_dtype=torch_dtype,
-						device=device,
+					model = AutoModelForSpeechSeq2Seq.from_pretrained(
+						model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=True, use_safetensors=True
 					)
+					model.to(device)
+
+					processor = AutoProcessor.from_pretrained(model_id)
+
+					ss.pipe = pipeline(
+							"automatic-speech-recognition",
+							model=model,
+							tokenizer=processor.tokenizer,
+							feature_extractor=processor.feature_extractor,
+							max_new_tokens=128, # controls the maximum number of generated tokens per-chunk.
+							chunk_length_s=15,  # To enable chunking, pass the chunk_length_s parameter to the pipeline. For Distil-Whisper, a chunk length of 15-seconds is optimal.
+							batch_size=2,
+							torch_dtype=torch_dtype,
+							device=device,
+						)
 
 		if st.button('Transcribe', disabled=audio_df.empty, type='primary', use_container_width=True):
 			#with st.spinner('transcribing'):
