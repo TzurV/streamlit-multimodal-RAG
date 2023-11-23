@@ -8,6 +8,7 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.llms import HuggingFaceHub
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.chains import RetrievalQA
+from langchain.document_loaders import TextLoader
 
 # source: https://github.com/huggingface/distil-whisper
 from transformers import pipeline
@@ -192,8 +193,19 @@ def extract_text_from_pdf():
 	directory = Path(structure.pdf)
 	for path in directory.glob('*.pdf'):
 		st.write(f"extracting {path}")
-		#loaders.append(UnstructuredPDFLoader(path))
+
 	loaders = [UnstructuredPDFLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
+	st.write(loaders)
+	return loaders
+
+def extract_text_from_txt():
+	loaders = []
+	directory = Path(structure.txt)
+	for text_file in directory.glob('*.txt'):
+		st.write(f"adding {text_file}")
+
+	loaders = [TextLoader(text_file) for text_file in directory.glob('*.txt')]
+	st.write(loaders, loaders[0].file_path)
 	return loaders
 
 def text_filename_from_original(original_file_name):
@@ -205,9 +217,10 @@ def text_filename_from_original(original_file_name):
 	:return: The generated text filename.
 	:rtype: str
 	"""
-	text_filename = structure.txt + original_file_name.stem + \
-            '_' + original_file_name.suffix.replace('.', '') + '.txt'
+	text_filename = Path(structure.txt) / (original_file_name.stem +
+                                        '_' + original_file_name.suffix.replace('.', '') + '.txt')
 	return Path(text_filename)
+
 
 def	transcibe_audio():
 	directory = Path(structure.audio)
@@ -254,28 +267,34 @@ def ui_load_file():
 			now = datetime.now()
 			current_time = now.strftime("%H:%M:%S.%f")
 
-			loaders = extract_text_from_pdf()
-			#st.write(type(loaders), len(loaders), loaders[0])
-			#transcibe_audio()
+			loaders = []
+			#loaders = extract_text_from_pdf()
+			loaders += extract_text_from_txt()
+			st.write(loaders)
 
-			vectorstoreIndex = VectorstoreIndexCreator(
-				embedding=HuggingFaceEmbeddings(),
-				text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
+			if len(loaders):
+				with st.spinner(f"Building DB {current_time}"):
+					vectorstoreIndex = VectorstoreIndexCreator(
+						embedding=HuggingFaceEmbeddings(),
+						text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
 
-			if curent_llm is None and ss.get('api_key'):
-				set_gf_api_key()
+					if curent_llm is None and ss.get('api_key'):
+						set_gf_api_key()
+					else:
+						st.error("API key not set")
+
+					# https://python.langchain.com/docs/use_cases/question_answering/
+					ss['chain'] = RetrievalQA.from_chain_type(llm=curent_llm,
+													chain_type="stuff",
+													retriever=vectorstoreIndex.vectorstore.as_retriever(search_kwargs={"k": 6}),
+													input_key="question")
+					showtime(f"Chain build {type(ss['chain'])}")
+
+					st.write('**building**', current_time)
+					st.write('**done**')
 			else:
-				st.error("API key not set")
+				st.error("no text was provided to build the DB")
 
-			# https://python.langchain.com/docs/use_cases/question_answering/
-			ss['chain'] = RetrievalQA.from_chain_type(llm=curent_llm,
-											chain_type="stuff",
-											retriever=vectorstoreIndex.vectorstore.as_retriever(search_kwargs={"k": 6}),
-											input_key="question")
-			showtime(f"Chain build {type(ss['chain'])}")
-
-			st.write('**building**', current_time)
-			st.write('**done**')
 
 		st.write('## 3. Ask questions')
 		disabled = False
@@ -366,10 +385,7 @@ def ui_load_file():
 						)
 
 		if st.button('Transcribe', disabled=audio_df.empty, type='primary', use_container_width=True):
-			#with st.spinner('transcribing'):
 			transcibe_audio()
-			#time.sleep(1)
-
 
 		if not len(audio_df.index) == 0:
 			ss.loaded = True
