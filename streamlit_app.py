@@ -38,6 +38,7 @@ if 'loaded' not in ss: ss['loaded'] = False
 if 'run_return' not in ss: ss['run_return'] = False
 if 'transcriber' not in ss: ss['transcriber'] = None
 if 'pipe' not in ss: ss['pipe'] = None
+if 'qas' not in ss: ss['qas'] = []
 
 
 def showtime(label=""):
@@ -195,7 +196,6 @@ def extract_text_from_pdf():
 		st.write(f"extracting {path}")
 
 	loaders = [UnstructuredPDFLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
-	st.write(loaders)
 	return loaders
 
 def extract_text_from_txt():
@@ -204,7 +204,7 @@ def extract_text_from_txt():
 	for text_file in directory.glob('*.txt'):
 		st.write(f"adding {text_file}")
 
-	loaders = [TextLoader(text_file) for text_file in directory.glob('*.txt')]
+	loaders = [TextLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
 	st.write(loaders, loaders[0].file_path)
 	return loaders
 
@@ -253,6 +253,17 @@ def	transcibe_audio():
 		# save text in file
 		with open(text_filename, "w") as f: 
 			f.write(transcription['text'])
+ 
+def add_qa(question, answer):
+    qa = f"**{question}** \n\n {answer}\n\n"
+    ss.qas.insert(0, qa)
+    show_qas()
+
+def show_qas():
+    st.subheader('Question & Answer Log', divider='rainbow') 
+    for qa in ss.qas:
+        st.markdown(qa)
+        st.markdown('---')
 
 def ui_load_file():
 	global curent_llm
@@ -268,7 +279,7 @@ def ui_load_file():
 			current_time = now.strftime("%H:%M:%S.%f")
 
 			loaders = []
-			#loaders = extract_text_from_pdf()
+			loaders = extract_text_from_pdf()
 			loaders += extract_text_from_txt()
 			st.write(loaders)
 
@@ -302,8 +313,11 @@ def ui_load_file():
 		if st.button('get answer', disabled=disabled, type='primary', use_container_width=True):
 			with st.spinner('preparing answer'):
 				chain = ss['chain']
-				showtime(f"question: {question} {type(chain)}")
-				st.write(f"answer: {chain.run(question)}")
+				# get asnwer and print all QA
+				add_qa(question, chain.run(question))
+				
+				#showtime(f"question: {question} {type(chain)}")
+				#st.write(f"answer: {chain.run(question)}")
 
 	#with t1:
 	#		#ui_buildDB()
