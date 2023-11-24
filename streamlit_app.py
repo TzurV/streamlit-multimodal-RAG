@@ -90,12 +90,10 @@ structure = DirectoryStructure()
 
 curent_llm = None
 if 'chain' not in ss: ss['chain'] = None
-ss['show_debug'] = True
+ss['show_debug'] = False
 
 def set_gf_api_key():
 
-	#global gf_api_key
-	#gf_api_key = api_key
 	os.environ["HUGGINGFACEHUB_API_TOKEN"] = ss.get('api_key')
 
 	# load llm
@@ -315,13 +313,6 @@ def ui_load_file():
 				chain = ss['chain']
 				# get asnwer and print all QA
 				add_qa(question, chain.run(question))
-				
-				#showtime(f"question: {question} {type(chain)}")
-				#st.write(f"answer: {chain.run(question)}")
-
-	#with t1:
-	#		#ui_buildDB()
-	#	ui_question()
 
 	with t2:
 		uploaded_file = st.file_uploader('pdf file', type=['pdf', 'wav', 'mp3'], key='load from local')
