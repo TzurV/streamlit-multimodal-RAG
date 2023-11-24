@@ -21,11 +21,13 @@ import altair as alt
 import pandas as pd
 from datetime import datetime
 import time
+import re
+import requests
+from urllib.parse import urlparse
 
 import my_keys
 
-app_name = "streamlit RAG"
-
+app_name = "Streamlit Multimodal RAG"
 
 # session state
 st.set_page_config(layout='centered', page_title=f'{app_name}')
@@ -130,7 +132,8 @@ def ui_info():
 	st.markdown(f"""
 	# {app_name}
 
-    Description: TBD
+    Multimodal Question Answering system supporting urls, pdf, and audio files.
+
 	""")
 
 # def index_pdf_file():
@@ -203,7 +206,6 @@ def extract_text_from_txt():
 		st.write(f"adding {text_file}")
 
 	loaders = [TextLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
-	st.write(loaders, loaders[0].file_path)
 	return loaders
 
 def text_filename_from_original(original_file_name):
@@ -224,9 +226,10 @@ def	transcibe_audio():
 	directory = Path(structure.audio)
 	wav_files = list(directory.glob('*.wav')) 
 	mp3_files = list(directory.glob('*.mp3'))
+	opus_files = list(directory.glob('*.opus'))
 
 	# source https://github.com/huggingface/distil-whisper
-	all_audio_files = wav_files + mp3_files
+	all_audio_files = wav_files + mp3_files + opus_files
 	for audio_file in all_audio_files:
 
 		text_filename = text_filename_from_original(audio_file)
@@ -242,7 +245,7 @@ def	transcibe_audio():
 			#transcription = transcriber(samples)
 
 			transcription = ss.pipe(samples)
-			st.write(transcription)
+			#st.write(transcription)
 
 		elapsed_time = time.time() - start_time 
 		st.success('Done!')
@@ -251,7 +254,63 @@ def	transcibe_audio():
 		# save text in file
 		with open(text_filename, "w") as f: 
 			f.write(transcription['text'])
- 
+
+
+def download_audio(url, local_directory):
+	try:
+		# Extract the filename from the URL
+		filename = os.path.basename(url)
+		local_path = os.path.join(local_directory, filename)
+		if os.path.exists(local_path):
+			st.write(f"Audio file {local_path} already exists")
+			return
+
+		response = requests.get(url)
+		if response.status_code == 200:
+
+			with open(local_path, 'wb') as file:
+				file.write(response.content)
+			st.write(f"Audio file downloaded and saved as {local_path}")
+			
+		else:
+			st.write(f"Failed to download audio. Status code: {response.status_code}")
+
+	except Exception as e:
+		st.write(f"An error occurred: {str(e)}")
+
+
+def process_url(url):
+    
+	# Check if valid URL 
+	if not re.match(r"https?://", url):
+		print("Not a valid URL")  
+		return
+        
+	parsed_url = urlparse(url)
+	ext = os.path.splitext(parsed_url.path)[1]
+    
+	if parsed_url.hostname == 'youtube.com':
+		st.write(f"{url} is a youtube url")
+    
+	elif ext in ['.mp3', '.wav', '.opus']:
+                  
+		# Download file  
+		with st.spinner(f"Downloading {url}"):
+			download_audio(url, structure.audio)
+
+		# audio_data = requests.get(url).content 
+
+		# # Save in wav directory
+		# filename = structure.audio + '/' + os.path.basename(url)
+		# with open(filename, 'wb') as f:
+		# 	f.write(audio_data)
+
+		# print(f"Saved audio file to {filename}")
+	
+	else:
+		st.write("Not supported URL")
+		return
+
 def add_qa(question, answer):
     qa = f"**{question}** \n\n {answer}\n\n"
     ss.qas.insert(0, qa)
@@ -279,7 +338,7 @@ def ui_load_file():
 			loaders = []
 			loaders = extract_text_from_pdf()
 			loaders += extract_text_from_txt()
-			st.write(loaders)
+			#st.write(loaders)
 
 			if len(loaders):
 				with st.spinner(f"Building DB {current_time}"):
@@ -315,7 +374,9 @@ def ui_load_file():
 				add_qa(question, chain.run(question))
 
 	with t2:
-		uploaded_file = st.file_uploader('pdf file', type=['pdf', 'wav', 'mp3'], key='load from local')
+		uploaded_file = st.file_uploader('audio, pdf and txt file', 
+								        type=['pdf', 'wav', 'mp3', 'txt'],
+										key='load from local')
 
 		if uploaded_file is not None:
 			file_save(uploaded_file)
@@ -360,11 +421,28 @@ def ui_load_file():
 		st.header('audio Files')
 		st.table(audio_df)
 
+		# List of dicts with file info
+		directory = Path(structure.txt)
+		txt_files = []
+		for path in directory.glob('*.txt'):
+			info = {
+				'filename': path.name,
+				'size': path.stat().st_size
+			}
+			txt_files.append(info)
+
+		# Create dataframe
+		txt_df = pd.DataFrame(txt_files)
+
+		# Display dataframe
+		st.header('Text Files')
+		st.table(txt_df)
+
 		# source: https://github.com/huggingface/distil-whisper#long-form-transcription
 		if not audio_df.empty and ss.transcriber is None:
 			if ss.pipe is None:
 				with st.spinner('loading model'):
-					#ss.transcriber = pipeline(model="openai/whisper-base")
+
 					device = "cuda:0" if torch.cuda.is_available() else "cpu"
 					torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
 
@@ -405,9 +483,10 @@ def ui_load_file():
 			st.write('**geting**')
 
 			if text:
-				for line in text.splitlines():
+				for url in text.splitlines():
 					# Process each line
-					st.write(line)
+					#st.write(url)
+					process_url(url)
 
 			st.write('**done**')
 
