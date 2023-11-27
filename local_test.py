@@ -13,9 +13,11 @@ from langchain.chains import RetrievalQA
 from langchain.llms import HuggingFaceHub
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.document_loaders import UnstructuredPDFLoader
 import my_keys
 
 os.environ["HUGGINGFACEHUB_API_TOKEN"] = my_keys.HUGGINGFACEHUB_API_TOKEN
+os.environ["TOKENIZERS_PARALLELISM"] = 'false'
 
 def download_transcription_or_audio(youtube_url):
     try:
@@ -107,7 +109,7 @@ for text_file in os.listdir(directory):
         if loaded_documents:
             docs.extend(loaded_documents)
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
 texts = text_splitter.split_documents(docs)
 
 def make_embedder():
@@ -164,5 +166,44 @@ chain = RetrievalQA.from_chain_type(llm=current_llm,
 question = "What were the main findings from evaluating the proposed DLN on the noisy MSP-Podcast corpus? "
 print(chain.run(question))
 
+question = "how many different languages text-to-speech (TTS) solutions focus on synthesizing ?"
+print(chain.run(question))
+
 question = "What time is it now? "
+print(chain.run(question))
+
+
+
+print("--------- Add PDFs --------------")
+directory = '/app/pdf'
+for file in os.listdir(directory):
+    print(file)
+loaders = [UnstructuredPDFLoader(os.path.join(directory, fn))
+           for fn in os.listdir(directory)]
+
+for loader in loaders:
+    print(loader)
+    loaded_pdf = loader.load()
+    #print(loaded_pdf)
+    texts = text_splitter.split_documents(loaded_pdf)
+    #print('---------------------------- Texts ----------------------------')
+    #print(type(texts))
+    #print(texts)
+    
+    print('--- db.add_documents(texts) ---')
+    db.add_documents(texts)
+
+    all_documents = db.get()['documents']
+    total_records = len(all_documents)
+    print("Total records in the collection: ", total_records)
+
+
+
+question = "who includes learnable language embeddings?"
+print(chain.run(question))
+
+question = "What time is it now? "
+print(chain.run(question))
+
+question = "What were the main findings from evaluating the proposed DLN on the noisy MSP-Podcast corpus? "
 print(chain.run(question))
