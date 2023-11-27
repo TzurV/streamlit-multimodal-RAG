@@ -199,11 +199,16 @@ for loader in loaders:
 
 
 
-question = "who includes learnable language embeddings?"
-print(chain.run(question))
+
 
 question = "What time is it now? "
 print(chain.run(question))
 
 question = "What were the main findings from evaluating the proposed DLN on the noisy MSP-Podcast corpus? "
 print(chain.run(question))
+print(db.similarity_search(question))
+
+
+question = "who includes learnable language embeddings?"
+print(chain.run(question))
+print(db.similarity_search(question))
