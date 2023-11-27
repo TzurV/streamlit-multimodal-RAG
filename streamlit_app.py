@@ -5,10 +5,13 @@ from pathlib import Path
 from langchain.document_loaders import UnstructuredPDFLoader
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.llms import HuggingFaceHub
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.chains import RetrievalQA
 from langchain.document_loaders import TextLoader
+from langchain.vectorstores import Chroma
+from langchain.prompts import PromptTemplate
 
 # source: https://github.com/huggingface/distil-whisper
 from transformers import pipeline
@@ -173,6 +176,8 @@ def file_save(uploaded_file):
 		path = structure.pdf
 	elif file_ext == '.wav' or file_ext == '.mp3':
 		path = structure.audio
+	elif file_ext == '.txt':
+		path = structure.txt
 	else:
 		st.write('unknown file type')
 		return  
@@ -191,22 +196,29 @@ def file_save(uploaded_file):
 
 
 def extract_text_from_pdf():
-	loaders = []
+	documents = []
 	directory = Path(structure.pdf)
-	for path in directory.glob('*.pdf'):
-		st.write(f"extracting {path}")
+	#for path in directory.glob('*.pdf'):
+	#	st.write(f"extracting {path}")
 
-	loaders = [UnstructuredPDFLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
-	return loaders
+	for fn in os.listdir(directory):
+		st.write(f"adding {fn}")
+		documents.extend(UnstructuredPDFLoader(os.path.join(directory, fn)).load())
+
+	return documents
 
 def extract_text_from_txt():
-	loaders = []
+	
 	directory = Path(structure.txt)
-	for text_file in directory.glob('*.txt'):
-		st.write(f"adding {text_file}")
+	#for text_file in directory.glob('*.txt'):
+	#	st.write(f"adding {text_file}")
 
-	loaders = [TextLoader(os.path.join(directory, fn)) for fn in os.listdir(directory)]
-	return loaders
+	documents = []
+	for fn in os.listdir(directory):
+		st.write(f"adding {fn}")
+		documents.extend(TextLoader(os.path.join(directory, fn)).load())
+
+	return documents
 
 def text_filename_from_original(original_file_name):
 	"""
@@ -322,6 +334,17 @@ def show_qas():
         st.markdown(qa)
         st.markdown('---')
 
+def make_embedder():
+    model_name = "sentence-transformers/all-mpnet-base-v2"
+    model_kwargs = {'device': 'cpu'}
+    encode_kwargs = {'normalize_embeddings': False}
+    return HuggingFaceEmbeddings(
+        model_name=model_name,
+        model_kwargs=model_kwargs,
+        encode_kwargs=encode_kwargs
+    )
+
+
 def ui_load_file():
 	global curent_llm
 
@@ -334,28 +357,46 @@ def ui_load_file():
 		if st.button('Build DB', disabled=not ss.loaded, use_container_width=True):
 			now = datetime.now()
 			current_time = now.strftime("%H:%M:%S.%f")
+			
+			documents = []
+			documents += extract_text_from_pdf()
+			documents += extract_text_from_txt()
+			#st.write(f"len(documents)={len(documents)} of type {type(documents[0])} {type(documents[-1])}")
 
-			loaders = []
-			loaders = extract_text_from_pdf()
-			loaders += extract_text_from_txt()
-			#st.write(loaders)
-
-			if len(loaders):
+			if len(documents):
 				with st.spinner(f"Building DB {current_time}"):
-					vectorstoreIndex = VectorstoreIndexCreator(
-						embedding=HuggingFaceEmbeddings(),
-						text_splitter=CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)).from_loaders(loaders)
+					text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+					texts = text_splitter.split_documents(documents)
+
+					hf = make_embedder()
+					db = Chroma.from_documents(texts, hf)
 
 					if curent_llm is None and ss.get('api_key'):
 						set_gf_api_key()
 					else:
 						st.error("API key not set")
 
+					prompt_template = """Below is some context. Following the context is a question about it. 
+							
+							{context}
+							
+							Question: {question}
+										If the question can be answered from the context, answer it. 
+										If the question cannot be answered from the context, respond with 'I don't know'.
+
+									"""
+
+					PROMPT = PromptTemplate(
+						template=prompt_template, input_variables=["context", "question"]
+					)
+					chain_type_kwargs = {"prompt": PROMPT}
+
 					# https://python.langchain.com/docs/use_cases/question_answering/
 					ss['chain'] = RetrievalQA.from_chain_type(llm=curent_llm,
 													chain_type="stuff",
-													retriever=vectorstoreIndex.vectorstore.as_retriever(search_kwargs={"k": 6}),
-													input_key="question")
+                                               		retriever=db.as_retriever(search_kwargs={"k": 6}),
+                                            		input_key="question",
+                                            		chain_type_kwargs=chain_type_kwargs)
 					showtime(f"Chain build {type(ss['chain'])}")
 
 					st.write('**building**', current_time)
@@ -367,10 +408,11 @@ def ui_load_file():
 		st.write('## 3. Ask questions')
 		disabled = False
 		question = t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
-		if st.button('get answer', disabled=disabled, type='primary', use_container_width=True):
+		if st.button('Get answer', disabled=disabled, type='primary', use_container_width=True):
 			with st.spinner('preparing answer'):
 				chain = ss['chain']
 				# get asnwer and print all QA
+				#Query = f"Answer the question: {question} based on the text provided. return 'information not found!' if provided text not provides the answer."
 				add_qa(question, chain.run(question))
 
 	with t2:
@@ -470,7 +512,7 @@ def ui_load_file():
 		if st.button('Transcribe', disabled=audio_df.empty, type='primary', use_container_width=True):
 			transcibe_audio()
 
-		if not len(audio_df.index) == 0:
+		if not audio_df.empty or not txt_df.empty:
 			ss.loaded = True
 			ss.run_return = True
 			time.sleep(1)
