@@ -268,13 +268,13 @@ def	transcibe_audio():
 			f.write(transcription['text'])
 
 
-def download_audio(url, local_directory):
+def download_file(url, local_directory):
 	try:
 		# Extract the filename from the URL
 		filename = os.path.basename(url)
 		local_path = os.path.join(local_directory, filename)
 		if os.path.exists(local_path):
-			st.write(f"Audio file {local_path} already exists")
+			st.write(f"File {local_path} already exists")
 			return
 
 		response = requests.get(url)
@@ -282,17 +282,18 @@ def download_audio(url, local_directory):
 
 			with open(local_path, 'wb') as file:
 				file.write(response.content)
-			st.write(f"Audio file downloaded and saved as {local_path}")
+			st.write(f"File downloaded and saved as {local_path}")
 			
 		else:
-			st.write(f"Failed to download audio. Status code: {response.status_code}")
+			st.write(f"Failed to download. Status code: {response.status_code}")
 
 	except Exception as e:
 		st.write(f"An error occurred: {str(e)}")
 
 
 def process_url(url):
-    
+	st.write(f"processing {url}")
+
 	# Check if valid URL 
 	if not re.match(r"https?://", url):
 		print("Not a valid URL")  
@@ -301,24 +302,17 @@ def process_url(url):
 	parsed_url = urlparse(url)
 	ext = os.path.splitext(parsed_url.path)[1]
     
-	if parsed_url.hostname == 'youtube.com':
+	if parsed_url.hostname == 'www.youtube.com':
 		st.write(f"{url} is a youtube url")
     
 	elif ext in ['.mp3', '.wav', '.opus']:
-                  
-		# Download file  
 		with st.spinner(f"Downloading {url}"):
-			download_audio(url, structure.audio)
+			download_file(url, structure.audio)
 
-		# audio_data = requests.get(url).content 
+	elif ext in ['.txt']:
+		with st.spinner(f"Downloading {url}"):
+			download_file(url, structure.txt)
 
-		# # Save in wav directory
-		# filename = structure.audio + '/' + os.path.basename(url)
-		# with open(filename, 'wb') as f:
-		# 	f.write(audio_data)
-
-		# print(f"Saved audio file to {filename}")
-	
 	else:
 		st.write("Not supported URL")
 		return
