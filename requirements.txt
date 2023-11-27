@@ -12,3 +12,5 @@ pdfminer.six==20221105
 chromadb==0.3.26
 transformers[torch]
 librosa
+youtube-transcript-api
+pytube
