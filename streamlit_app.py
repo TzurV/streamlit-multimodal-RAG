@@ -17,6 +17,8 @@ from langchain.prompts import PromptTemplate
 from transformers import pipeline
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor
 
+from youtube_transcript_api import YouTubeTranscriptApi
+
 import torch
 import librosa
 import numpy as np
@@ -304,6 +306,32 @@ def process_url(url):
     
 	if parsed_url.hostname == 'www.youtube.com':
 		st.write(f"{url} is a youtube url")
+		try:
+			video_id = re.search(r"(?:\?v=|\&v=)(.+?)(&|$)", url).group(1)
+
+			youtube_transcript_file = f"youtube_{video_id}.txt"
+			local_path = os.path.join(structure.txt, youtube_transcript_file)
+			if os.path.exists(local_path):
+				st.write(f"File {local_path} already exists")
+				return
+
+			transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+			if len(transcript):
+				all_text = ''
+				for seg in transcript:
+					all_text += seg['text'] + ' '
+				
+				with open(local_path, 'w') as file:
+					file.write(all_text)
+				st.write(f"File downloaded and saved as {local_path}")				
+				
+			else:
+				st.write("No transcript found")
+				return
+			
+		except Exception as e:
+			st.write(f"Failed to process url. Error: {type(e)} {e}")
+			return
     
 	elif ext in ['.mp3', '.wav', '.opus']:
 		with st.spinner(f"Downloading {url}"):
