@@ -14,7 +14,7 @@ This Streamlit application implements a multimodal Question Answering (QA) syste
 
 ## Flowchart
 
-(![Streamlit Multimodal RAG flowchart](<Multimodal RAG.png>))
+![Streamlit Multimodal RAG flowchart](<Multimodal RAG.png>)
 
 ## Models Used
 
