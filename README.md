@@ -37,3 +37,8 @@ GUI access [localhost:8001](http://localhost:8001/)
 ## Note
 Please be aware that this is only a Proof of Concept system and 
 may contain bugs or unfinished features.
+
+### Resources
+- [langchain Retrieval-augmented generation (RAG)](https://python.langchain.com/docs/use_cases/question_answering/)
+- [langchain RAG documentation](https://python.langchain.com/docs/use_cases/question_answering/local_retrieval_qa)
+- [streamlin Ask my PDF app](https://ask-my-pdf.streamlit.app/)
