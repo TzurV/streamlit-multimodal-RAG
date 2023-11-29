@@ -149,27 +149,6 @@ def ui_info():
 	    'Source code can be found [here](https://github.com/TzurV/streamlit-RAG).')
 
 
-# def index_pdf_file():
-# 	st.write("In index_pdf_file")
-# 	if ss['pdf_file']:
-# 		st.write(f"In index_pdf_file {ss['pdf_file'].name}")
-# 		ss['filename'] = ss['pdf_file'].name
-# 		if ss['filename'] != ss.get('fielname_done'): # UGLY
-# 			with st.spinner(f'indexing {ss["filename"]}'):
-# 				index = model.index_file(ss['pdf_file'], ss['filename'], fix_text=ss['fix_text'], frag_size=ss['frag_size'], cache=ss['cache'])
-# 				ss['index'] = index
-# 				#debug_index()
-# 				ss['filename_done'] = ss['filename'] # UGLY
-
-
-#def ui_buildDB():
-#	st.write(f"## 2. build QA DB {ss.loaded}")
-#	disabled = ss.loaded
-#	if st.button('Build DB', disabled=disabled, type='primary', use_container_width=True):
-#		st.write('**building**')
-#		st.write('**done**')
-
-
 def ui_question():
 	st.write('## 3. Ask questions')
 	disabled = False
@@ -580,27 +559,4 @@ with st.sidebar:
 ui_load_file()
 ui_debug()
 
-#
-#Learn and remember:
-#
-# .........
-# 1. Session state
-#st.session_state is a way to store state across reruns in Streamlit.
-#
-#When a Streamlit app reruns (for example when interacting with a widget), normally all state is lost. 
-#st.session_state allows you to store values across reruns so they persist.
-#
-#    import streamlit as st
-#
-#    if 'count' not in st.session_state:
-#        st.session_state.count = 0
-#
-#    st.session_state.count += 1
-#
-#    st.write(st.session_state.count)
-#
-#This will increment and display a counter that persists across reruns.
-#
-# .........
-# 2.
-#
+
