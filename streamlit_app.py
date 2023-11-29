@@ -375,6 +375,21 @@ def make_embedder():
     )
 
 
+def delete_all_files(directory_path):
+    # Get a list of all files in the directory
+    file_list = os.listdir(directory_path)
+
+    # Iterate through the list and delete each file
+    for file_name in file_list:
+        file_path = os.path.join(directory_path, file_name)
+        try:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                print(f"Deleted: {file_path}")
+        except Exception as e:
+            print(f"Error deleting {file_path}: {e}")
+
+
 def ui_load_file():
 	global curent_llm
 
@@ -454,8 +469,20 @@ def ui_load_file():
 		if c1.button('Refresh files list', use_container_width=True):
 			pass
 
-		if c2.button('Clear all files and db', use_container_width=True):
-			pass
+		if c2.button('Delete all files and db -- NOT REVERSIBLE !! --', use_container_width=True, type="primary"):
+			del ss.chain
+			ss.chain = None
+
+			del ss.db
+			ss.db = None
+
+			del ss.qas
+			ss.qas = []
+
+			delete_all_files(structure.pdf)
+			delete_all_files(structure.audio)
+			delete_all_files(structure.txt)
+
 
 		uploaded_file = st.file_uploader('audio, pdf and txt file',
                                    type=['pdf', 'wav', 'mp3', 'txt'],
