@@ -30,7 +30,9 @@ import re
 import requests
 from urllib.parse import urlparse
 
-import my_keys
+if os.path.exists("my_keys.py"):
+    # Import the module if the file exists
+	import my_keys
 
 app_name = "Streamlit Multimodal RAG"
 
@@ -105,7 +107,7 @@ def set_gf_api_key():
 
 	# load llm
 	global curent_llm
-	curent_llm = HuggingFaceHub(repo_id="declare-lab/flan-alpaca-large", model_kwargs={"temperature":0, "max_length":512})
+	curent_llm = HuggingFaceHub(repo_id="declare-lab/flan-alpaca-large", model_kwargs={"temperature":0, "max_length":1024})
 
 def load_audio_set_sample_rate(file_path):
 	# Load the WAV file using librosa 
@@ -448,10 +450,16 @@ def ui_load_file():
 				add_qa(question, chain.run(question), retrieved_docs)
 
 	with t2:
-		uploaded_file = st.file_uploader('audio, pdf and txt file', 
-								        type=['pdf', 'wav', 'mp3', 'txt'],
-										key='load from local')
+		c1, c2 = st.columns([2, 1])
+		if c1.button('Refresh files list', use_container_width=True):
+			pass
 
+		if c2.button('Clear all files and db', use_container_width=True):
+			pass
+
+		uploaded_file = st.file_uploader('audio, pdf and txt file',
+                                   type=['pdf', 'wav', 'mp3', 'txt'],
+                                   key='load from local')
 		if uploaded_file is not None:
 			file_save(uploaded_file)
 
@@ -564,6 +572,23 @@ def ui_load_file():
 
 			st.write('**done**')
 
+
+def ui_llm():
+	st.write('## 2. LLM model')
+	models = ['declare-lab/flan-alpaca-large']
+	st.selectbox('llm model', models, key='llm_name', on_change=set_gf_api_key,
+	             disabled=not ss.get('api_key'), label_visibility="collapsed")
+
+
+def ui_stt():
+	st.write('## 3. STT model')
+	models = ['distil-whisper/distil-medium.en']
+	st.selectbox('stt model', models, key='stt_name', on_change=set_gf_api_key,
+	             disabled=not ss.get('api_key'), label_visibility="collapsed")
+
+
+
+#------------------
 # ---- M A I N ----
 
 # LAYOUT
@@ -576,7 +601,12 @@ with st.sidebar:
 	#The api_key parameter will contain the new value of the text input field.
 	st.write('## 1. Enter your huggingface API key')
 	st.text_input('huggingfacehub_api_token', type='password', key='api_key', on_change=set_gf_api_key, label_visibility="collapsed")
-	ui_spacer(2)
+	ui_spacer(1)
+
+	ui_llm()
+	ui_spacer(1)
+
+	ui_stt()
 
 
 # main GUI window
