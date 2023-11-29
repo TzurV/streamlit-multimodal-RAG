@@ -137,9 +137,17 @@ def ui_info():
 	st.markdown(f"""
 	# {app_name}
 
-    Multimodal Question Answering system supporting urls, pdf, and audio files.
+    Multimodal Question Answering system supporting 
+	urls, pdf, and audio files.
 
+	Thank you for your interest in my application.
+	Please be aware that this is only a Proof of Concept system and 
+	may contain bugs or unfinished features. 
 	""")
+	ui_spacer(1)
+	st.markdown(
+	    'Source code can be found [here](https://github.com/TzurV/streamlit-RAG).')
+
 
 # def index_pdf_file():
 # 	st.write("In index_pdf_file")
