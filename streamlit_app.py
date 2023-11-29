@@ -410,7 +410,7 @@ def ui_load_file():
 
 			if len(documents):
 				with st.spinner(f"Building DB {current_time}"):
-					text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+					text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=50)
 					texts = text_splitter.split_documents(documents)
 
 					hf = make_embedder()
