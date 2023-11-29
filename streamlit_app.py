@@ -332,10 +332,29 @@ def process_url(url):
 		st.write("Not supported URL")
 		return
 
-def add_qa(question, answer):
-    qa = f"**{question}** \n\n {answer}\n\n"
-    ss.qas.insert(0, qa)
-    show_qas()
+def add_qa(question, answer, retrieved_docs):
+	qa = ''
+	if "I don't know" not in answer and retrieved_docs:
+		# get file names
+		retrieved_docs = [doc.metadata['source']for doc in retrieved_docs]
+		
+		# Extract file base names
+		file_names = [doc.split("/")[-1].split(".")[0] for doc in retrieved_docs]
+
+		# Manually count occurrences
+		file_counts = {}
+		for name in file_names:
+			file_counts[name] = file_counts.get(name, 0) + 1
+
+		# Create a formatted string in descending order
+		source_docs = ", ".join([f"{name}({count})" for name, count in sorted(file_counts.items(), key=lambda x: x[1], reverse=True)])
+		qa = f"**{question}** \n\n {answer}\n\n **source**: {source_docs}\n"
+
+	else:
+		qa = f"**{question}** \n\n {answer}\n"
+
+	ss.qas.insert(0, qa)
+	show_qas()
 
 def show_qas():
     st.subheader('Question & Answer Log', divider='rainbow') 
@@ -379,6 +398,7 @@ def ui_load_file():
 
 					hf = make_embedder()
 					db = Chroma.from_documents(texts, hf)
+					ss['db'] = db
 
 					if curent_llm is None and ss.get('api_key'):
 						set_gf_api_key()
@@ -413,16 +433,19 @@ def ui_load_file():
 			else:
 				st.error("no text was provided to build the DB")
 
-
+		# --------------------------------
 		st.write('## 3. Ask questions')
 		disabled = False
 		question = t1.text_area('question', key='question', height=100, placeholder='Enter question here', help='', label_visibility="collapsed", disabled=disabled)
 		if st.button('Get answer', disabled=disabled, type='primary', use_container_width=True):
 			with st.spinner('preparing answer'):
-				chain = ss['chain']
+				# get source documents list
+				retriever = ss.db.as_retriever(search_type="similarity", search_kwargs={"k": 6})
+				retrieved_docs = retriever.get_relevant_documents(question)
+
 				# get asnwer and print all QA
-				#Query = f"Answer the question: {question} based on the text provided. return 'information not found!' if provided text not provides the answer."
-				add_qa(question, chain.run(question))
+				chain = ss['chain']
+				add_qa(question, chain.run(question), retrieved_docs)
 
 	with t2:
 		uploaded_file = st.file_uploader('audio, pdf and txt file', 
@@ -553,6 +576,7 @@ with st.sidebar:
 	#The api_key parameter will contain the new value of the text input field.
 	st.write('## 1. Enter your huggingface API key')
 	st.text_input('huggingfacehub_api_token', type='password', key='api_key', on_change=set_gf_api_key, label_visibility="collapsed")
+	ui_spacer(2)
 
 
 # main GUI window
