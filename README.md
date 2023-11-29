@@ -4,17 +4,17 @@ This Streamlit application implements a multimodal Question Answering (QA) syste
 
 ## Key Features
 
+- Interactive Streamlit UI for file uploads, DB build, and QA
 - Accepts input files in PDF, audio (WAV, MP3, opus), and text formats
 - Transcribes audio to text using HuggingFace DistilWhisper models
 - Audio transcription runs in close to real-time on CPU 
 - Background loading of models takes time, notice top-right running indicator  
 - Requires HuggingFace API key for access to models
-- Interactive Streamlit UI for file uploads, DB build, and QA
 - Docker container exposes port 8001, access UI with browser `localhost:8001`
 
 ## Flowchart
 
-![Streamlit Multimodal RAG flowchart](<Multimodal RAG.png>)
+<img src="Multimodal RAG.png" width="600">
 
 ## Models Used
 
